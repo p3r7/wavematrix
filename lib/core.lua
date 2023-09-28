@@ -4,6 +4,17 @@ function mod1(v, m)
   return ((v - 1) % m) + 1
 end
 
+-- continuous version of `mod1`
+function mod1_smooth(v, m)
+  local v_mod = mod1(v, math.floor(m))
+  local m_ceil = math.ceil(m)
+  local v_ceil = mod1(v, m_ceil)
+  if v_ceil == m_ceil then
+    return util.linlin(0, v_ceil, 0, m, v_ceil)
+  end
+  return v_mod
+end
+
 function offness(v, prev_v, next_v)
   local prev_delta = math.abs(v - prev_v)
   local next_delta = math.abs(next_v - v)
