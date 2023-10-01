@@ -207,17 +207,26 @@ end
 
 local wavetable_texture = nil
 
+-- function index_to_coords(i, nb_rows)
+--   if nb_rows == 1 then
+--     return i, 1
+--   end
+--   local x = math.max(1, util.round(i/nb_rows))
+--   local y = mod1_smooth(i, nb_rows)
+--   return x, y
+-- end
+
 function index_to_coords(i, nb_rows)
-  if nb_rows == 1 then
-    return i, 1
-  end
-  local x = math.max(1, math.floor(i/nb_rows))
   local y = mod1_smooth(i, nb_rows)
+  local x = (i - y) / nb_rows + 1
   return x, y
 end
 
 function coords_to_index(x, y, nb_rows)
-  return x * (nb_rows-1) + y
+    if nb_rows == 1 then
+        return x
+    end
+    return (x - 1) * nb_rows + y
 end
 
 function draw_wave_from_table(wi, x, y, w, a, phase_shift)
@@ -280,12 +289,15 @@ function draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_
   end
 end
 
-function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y)
+function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y, row_padding_y)
   local screen_w, screen_h = screen.get_size()
 
   local nb_waves_per_row = nb_waves/nb_rows
 
-  local i = params:get("wavetable_cursor_x") * (nb_waves_per_row - 1) + 1
+  local x = params:get("wavetable_cursor_x") * (nb_waves_per_row - 1) + 1
+  local y = params:get("wavetable_cursor_y") * (nb_rows - 1) + 1
+  local i = coords_to_index(x, y, nb_rows)
+
   local prev_i = math.floor(i)
   local next_i = math.ceil(i)
   local off = offness(i, prev_i, next_i)
@@ -309,13 +321,19 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
 
     local v = util.linlin(prev_i, next_i, wavetable[prev_wi][wt_prev], wavetable[next_wi][wt_next], i)
 
-    local x = 1 + t + (i-1) * wave_padding_x
-    local y = y_offset - v*(a/2)
+    -- local x = 1 + t + (i-1) * wave_padding_x
+    -- local y = y_offset - v*(a/2)
+
+    local wave_x = 1 + (x-1) * wave_padding_x + t
+    local wave_y = screen_h - wave_margin_y
+      - (y-1) * row_padding_y
+      - (x-1) * wave_padding_y
+      - v*(a/2)
 
     if t > 1 then
-      screen.line(x, y)
+      screen.line(wave_x, wave_y)
     end
-    screen.move(x, y)
+    screen.move(wave_x, wave_y)
   end
 end
 
@@ -341,14 +359,15 @@ function redraw()
   local pos_shift = util.round(params:get("wavetable_pos_shift") * (#wavetable-1))
 
   -- spacing between waves
-  local wave_padding_x = math.min(WAVE_PADDING_X, screen_w/nb_waves_per_row)
+  -- local wave_padding_x = math.min(WAVE_PADDING_X, screen_w/nb_waves_per_row)
+  local wave_padding_x = math.min(WAVE_PADDING_X, screen_w)
   local wave_padding_y = (wavetable_w - WAVE_H) / (nb_waves-1)
   local row_padding_y = (wavetable_w - WAVE_H) / nb_rows
   -- spacing between wavetable & top/bottom
   local wave_margin_y = (screen_h - wavetable_w)/2 + (WAVE_H/2)
 
   draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y, row_padding_y)
-  draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y)
+  draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y, row_padding_y)
 
   -- optim that doesn't work
   -- if screen_wavetable_dirty or wavetable_texture == nil then
