@@ -97,7 +97,7 @@ end
 
 function enc(n, d)
   if n == 1 then
-    local v = params:get("wavetable_pos_shift") + d/30
+    local v = params:get("wavetable_pos_shift") + (math.abs(d)/d)/500
     if v > 1 then
       v = v - 1
     elseif v < 0 then
