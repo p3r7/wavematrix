@@ -29,19 +29,17 @@ if seamstress then
   FPS = 60
   WAVE_H = 40
   MAX_WAVES_DISPLAYED = 70
+  MAX_FOLDING_ROWS = 6
 elseif norns then
   FPS = 15
   WAVE_H = 20
   MAX_WAVES_DISPLAYED = 30
+  MAX_FOLDING_ROWS = 4
 end
-
 
 WAVE_PADDING_X = 2
 
 SHIFT_FACTOR = 5
-
-
-MAX_FOLDING_ROWS = 6
 
 
 -- -------------------------------------------------------------------------
@@ -421,8 +419,8 @@ function redraw()
   -- screen.color(103, 103, 103)
   -- screen.rect(wavetable_w, wavetable_w)
 
-  local nb_rows = params:get("wavetable_fold") * (MAX_FOLDING_ROWS-1) + 1
   local nb_waves = math.max(util.round(params:get("wavetable_length") * math.min(#wavetable, MAX_WAVES_DISPLAYED)), 2)
+  local nb_rows = math.min(params:get("wavetable_fold") * (MAX_FOLDING_ROWS-1) + 1, util.round(nb_waves/2))
   local nb_waves_per_row = nb_waves/nb_rows
   local pos_shift = util.round(params:get("wavetable_pos_shift") * (#wavetable-1))
 
