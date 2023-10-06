@@ -29,3 +29,20 @@ function offness(v, prev_v, next_v)
     return next_delta / ((next_v - prev_v)/2)
   end
 end
+
+
+-- -------------------------------------------------------------------------
+-- 2d folding
+
+function index_to_coords(i, nb_rows)
+  local y = mod1_smooth(i, nb_rows)
+  local x = (i - y) / nb_rows + 1
+  return x, y
+end
+
+function coords_to_index(x, y, nb_rows)
+    if nb_rows == 1 then
+        return x
+    end
+    return (x - 1) * nb_rows + y
+end

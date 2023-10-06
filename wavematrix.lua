@@ -207,28 +207,6 @@ end
 
 local wavetable_texture = nil
 
--- function index_to_coords(i, nb_rows)
---   if nb_rows == 1 then
---     return i, 1
---   end
---   local x = math.max(1, util.round(i/nb_rows))
---   local y = mod1_smooth(i, nb_rows)
---   return x, y
--- end
-
-function index_to_coords(i, nb_rows)
-  local y = mod1_smooth(i, nb_rows)
-  local x = (i - y) / nb_rows + 1
-  return x, y
-end
-
-function coords_to_index(x, y, nb_rows)
-    if nb_rows == 1 then
-        return x
-    end
-    return (x - 1) * nb_rows + y
-end
-
 function draw_wave_from_table(wi, x, y, w, a, phase_shift)
   for t=1,w do
     local wt = util.round(util.linlin(1, w, 1, #wavetable[wi], t))
@@ -253,6 +231,10 @@ function draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_
     local wi = mod1(i + pos_shift, #wavetable)
 
     local x, y = index_to_coords(i, nb_rows)
+
+    if y > 1 then
+      -- goto NEXT_WAVE
+    end
 
     local wave_x = 1 + (x-1) * wave_padding_x
     local wave_y = screen_h - wave_margin_y
@@ -286,7 +268,24 @@ function draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_
 
     local a = util.linlin(1, MAX_FOLDING_ROWS, WAVE_H, WAVE_H/(MAX_FOLDING_ROWS/2), nb_rows)
     draw_wave_from_table(wi, wave_x, wave_y, wavetable_w, a, phase_shift)
+    ::NEXT_WAVE::
   end
+end
+
+function prev_wave_bottom(x, y, nb_rows)
+  return util.round(coords_to_index(math.floor(x), math.floor(y), nb_rows))
+end
+
+function next_wave_bottom(x, y, nb_rows)
+  return util.round(coords_to_index(math.ceil(x), math.floor(y), nb_rows))
+end
+
+function prev_wave_top(x, y, nb_rows)
+  return util.round(coords_to_index(math.floor(x), math.min(math.ceil(y), nb_rows), nb_rows))
+end
+
+function next_wave_top(x, y, nb_rows)
+  return util.round(coords_to_index(math.ceil(x), math.min(math.ceil(y), nb_rows), nb_rows))
 end
 
 function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y, row_padding_y)
@@ -298,28 +297,49 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
   local y = params:get("wavetable_cursor_y") * (nb_rows - 1) + 1
   local i = coords_to_index(x, y, nb_rows)
 
-  local prev_i = math.floor(i)
-  local next_i = math.ceil(i)
-  local off = offness(i, prev_i, next_i)
-  local prev_wi = mod1(prev_i + pos_shift, #wavetable)
-  local next_wi = mod1(next_i + pos_shift, #wavetable)
+  local prev_i_bottom = prev_wave_bottom(x, y, nb_rows)
+  local next_i_bottom = next_wave_top(x, y, nb_rows)
+  local prev_i_top = prev_wave_top(x, y, nb_rows)
+  local next_i_top = next_wave_bottom(x, y, nb_rows)
+  local prev_wi_bottom = mod1(prev_i_bottom + pos_shift, #wavetable)
+  local next_wi_bottom = mod1(next_i_bottom + pos_shift, #wavetable)
+  local prev_wi_top = mod1(prev_i_top + pos_shift, #wavetable)
+  local next_wi_top = mod1(next_i_top + pos_shift, #wavetable)
 
-  local y_offset = screen_h - wave_margin_y - (i-1) * wave_padding_y
+  local off_x = offness(x, math.floor(x), math.ceil(x))
+  local off_y = offness(y, math.floor(y), math.min(math.ceil(y), nb_rows))
+
+  local off = 0
+  if nb_rows == 1 then
+    off = off_x
+  else
+    off = (off_x + off_y) / 2
+  end
 
   local c = colorutil.scale(COL_WAVE_SELECTED, COL_WAVE_SELECTED_OFF, off)
   screen.color(table.unpack(c))
 
-  local a = WAVE_H/nb_rows
+  -- local a = WAVE_H/nb_rows
+  local a = util.linlin(1, MAX_FOLDING_ROWS, WAVE_H, WAVE_H/(MAX_FOLDING_ROWS/2), nb_rows)
 
   for t=1,wavetable_w do
     -- NB: assuming all waves have same length!
-    local nb_samples = math.min(#wavetable[prev_wi], #wavetable[next_wi])
+    local nb_samples = #wavetable[prev_wi_bottom]
 
     local wt = util.round(util.linlin(1, wavetable_w, 1, nb_samples, t))
-    local wt_prev = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (prev_i/nb_waves) * nb_samples), nb_samples)
-    local wt_next = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (next_i/nb_waves) * nb_samples), nb_samples)
 
-    local v = util.linlin(prev_i, next_i, wavetable[prev_wi][wt_prev], wavetable[next_wi][wt_next], i)
+    local wt_prev_bottom = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (prev_i_top/nb_waves) * nb_samples), nb_samples)
+    local wt_next_bottom = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (next_i_top/nb_waves) * nb_samples), nb_samples)
+    local v_bottom = util.linlin(math.floor(x), math.ceil(x), wavetable[prev_wi_bottom][wt_prev_bottom], wavetable[next_wi_bottom][wt_next_bottom], x)
+
+    local wt_prev_top = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (prev_i_top/nb_waves) * nb_samples), nb_samples)
+    local wt_next_top = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (next_i_top/nb_waves) * nb_samples), nb_samples)
+    local v_top = util.linlin(math.floor(x), math.ceil(x), wavetable[prev_wi_top][wt_prev_top], wavetable[next_wi_top][wt_next_top], x)
+
+    local v = util.linlin(math.floor(y), math.min(math.ceil(y), nb_rows), v_bottom, v_top, y)
+
+    -- local wt_prev = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (prev_i/nb_waves) * nb_samples), nb_samples)
+    -- local wt_next = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (next_i/nb_waves) * nb_samples), nb_samples)
 
     -- local x = 1 + t + (i-1) * wave_padding_x
     -- local y = y_offset - v*(a/2)
@@ -359,8 +379,8 @@ function redraw()
   local pos_shift = util.round(params:get("wavetable_pos_shift") * (#wavetable-1))
 
   -- spacing between waves
-  -- local wave_padding_x = math.min(WAVE_PADDING_X, screen_w/nb_waves_per_row)
-  local wave_padding_x = math.min(WAVE_PADDING_X, screen_w)
+  -- local wave_padding_x = math.min(screen_w/(nb_waves/math.min(nb_rows, MAX_FOLDING_ROWS*2/3)), WAVE_PADDING_X)
+  local wave_padding_x = WAVE_PADDING_X
   local wave_padding_y = (wavetable_w - WAVE_H) / (nb_waves-1)
   local row_padding_y = (wavetable_w - WAVE_H) / nb_rows
   -- spacing between wavetable & top/bottom
