@@ -25,15 +25,21 @@ include("lib/core")
 
 DBG = true
 
-FPS = 60
+if seamstress then
+  FPS = 60
+  WAVE_H = 40
+  MAX_WAVES_DISPLAYED = 70
+elseif norns then
+  FPS = 15
+  WAVE_H = 20
+  MAX_WAVES_DISPLAYED = 30
+end
 
-WAVE_H = 40
 
 WAVE_PADDING_X = 2
 
 SHIFT_FACTOR = 5
 
-MAX_WAVES_DISPLAYED = 70
 
 MAX_FOLDING_ROWS = 6
 
@@ -49,6 +55,13 @@ COL_WAVE_BG = {244, 108, 108}
 COL_WAVE_SELECTED = {50, 205, 50}
 COL_WAVE_SELECTED_OFF = {255, 0, 0}
 
+function screen_size()
+  if seamstress then
+    return screen.get_size()
+  elseif norns then
+    return 128, 64
+  end
+end
 
 -- -------------------------------------------------------------------------
 -- state
@@ -80,6 +93,21 @@ function parse_wav_dir(dirpath)
   end
 end
 
+
+-- -------------------------------------------------------------------------
+-- norns enc
+
+function enc(n, d)
+  if n == 1 then
+    local v = params:get("wavetable_pos_shift") + d/30
+    if v > 1 then
+      v = v - 1
+    elseif v < 0 then
+      v = 1 + v
+    end
+    params:set("wavetable_pos_shift", v)
+  end
+end
 
 -- -------------------------------------------------------------------------
 -- bleached
@@ -174,7 +202,7 @@ end
 screen.mouse = function(x, y)
   mouse_x, mouse_y = x, y
 
-  local _, screen_h = screen.get_size()
+  local _, screen_h = screen_size()
   local wavetable_w = screen_h * 3/4
   local wave_margin_y = (screen_h - wavetable_w)/2 + (WAVE_H/2)
   if mouse_y >= wave_margin_y
@@ -184,7 +212,7 @@ screen.mouse = function(x, y)
   end
 
   -- if not has_bleached then
-  --   local _, screen_h = screen.get_size()
+  --   local _, screen_h = screen_size()
   --   params:set("wavetable_cursor_x", util.linlin(0, screen_h, 0, 1, screen_h-mouse_y))
   -- end
 end
@@ -220,10 +248,13 @@ function draw_wave_from_table(wi, x, y, w, a, phase_shift)
     end
     screen.move(x_point, y_point)
   end
+  if norns then
+    screen.stroke()
+  end
 end
 
 function draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y, row_padding_y)
-  local screen_w, screen_h = screen.get_size()
+  local screen_w, screen_h = screen_size()
   local nb_waves_per_row = math.floor(nb_waves/nb_rows)
 
   -- NB: we draw from front to back
@@ -246,25 +277,30 @@ function draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_
     -- correct but maybe less "fun"
     local phase_shift = params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (wi/nb_waves) * #wavetable[wi]
 
-    local c
-    if false and math.abs(mouse_y - wave_y) < (wave_padding_y/2) then
-      c = {200, 200, 200}
-    else
-      -- y color
-      local c2 = colorutil.scale(COL_WAVE_FG, COL_WAVE_FG_2, util.linlin(1, MAX_FOLDING_ROWS, 0, 1, y))
-      c = colorutil.scale(COL_WAVE_FG, c2, util.linlin(1, MAX_FOLDING_ROWS, 0, 1, y))
-      c = colorutil.scale(c, COL_WAVE_FG, util.linlin(nb_waves, 1, 0, 1, i))
-      -- x color (fade out)
-      local fade_out_amount = 0
-      if nb_waves < MAX_WAVES_DISPLAYED/20 then
-        fade_out_amount = util.clamp(util.linlin(1, MAX_WAVES_DISPLAYED, 0, 1, i), 0, 0.95)
+    if seamstress then
+      local c
+      if false and math.abs(mouse_y - wave_y) < (wave_padding_y/2) then
+        c = {200, 200, 200}
       else
-        fade_out_amount = util.clamp(util.linlin(1, nb_waves, 0, 1, i), 0, 0.95)
+        -- y color
+        local c2 = colorutil.scale(COL_WAVE_FG, COL_WAVE_FG_2, util.linlin(1, MAX_FOLDING_ROWS, 0, 1, y))
+        c = colorutil.scale(COL_WAVE_FG, c2, util.linlin(1, MAX_FOLDING_ROWS, 0, 1, y))
+        c = colorutil.scale(c, COL_WAVE_FG, util.linlin(nb_waves, 1, 0, 1, i))
+        -- x color (fade out)
+        local fade_out_amount = 0
+        if nb_waves < MAX_WAVES_DISPLAYED/20 then
+          fade_out_amount = util.clamp(util.linlin(1, MAX_WAVES_DISPLAYED, 0, 1, i), 0, 0.95)
+        else
+          fade_out_amount = util.clamp(util.linlin(1, nb_waves, 0, 1, i), 0, 0.95)
+        end
+        c = colorutil.scale(c, COL_BG, fade_out_amount)
       end
-      c = colorutil.scale(c, COL_BG, fade_out_amount)
-    end
 
-    screen.color(table.unpack(c))
+      screen.color(table.unpack(c))
+    elseif norns then
+      local l = util.linexp(1, nb_waves, 10, 1, i)
+      screen.level(util.round(l))
+    end
 
     local a = util.linlin(1, MAX_FOLDING_ROWS, WAVE_H, WAVE_H/(MAX_FOLDING_ROWS/2), nb_rows)
     draw_wave_from_table(wi, wave_x, wave_y, wavetable_w, a, phase_shift)
@@ -289,7 +325,7 @@ function next_wave_top(x, y, nb_rows)
 end
 
 function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y, row_padding_y)
-  local screen_w, screen_h = screen.get_size()
+  local screen_w, screen_h = screen_size()
 
   local nb_waves_per_row = nb_waves/nb_rows
 
@@ -316,8 +352,12 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
     off = (off_x + off_y) / 2
   end
 
-  local c = colorutil.scale(COL_WAVE_SELECTED, COL_WAVE_SELECTED_OFF, off)
-  screen.color(table.unpack(c))
+  if seamstress then
+    local c = colorutil.scale(COL_WAVE_SELECTED, COL_WAVE_SELECTED_OFF, off)
+    screen.color(table.unpack(c))
+  elseif norns then
+    screen.level(15)
+  end
 
   -- local a = WAVE_H/nb_rows
   local a = util.linlin(1, MAX_FOLDING_ROWS, WAVE_H, WAVE_H/(MAX_FOLDING_ROWS/2), nb_rows)
@@ -355,16 +395,24 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
     end
     screen.move(wave_x, wave_y)
   end
+
+  if norns then
+    screen.stroke()
+  end
+
 end
 
 function redraw()
-  local screen_w, screen_h = screen.get_size()
+  local screen_w, screen_h = screen_size()
 
   screen.clear()
 
   screen.move(1, 1)
-  screen.color(table.unpack(COL_BG))
-  screen.rect_fill(screen_w, screen_h)
+
+  if seamstress then
+    screen.color(table.unpack(COL_BG))
+    screen.rect_fill(screen_w, screen_h)
+  end
 
   local wavetable_w = screen_h * 3/4
 
@@ -402,6 +450,10 @@ function redraw()
   --   draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y)
   -- end
 
-  screen.refresh()
+  if seamstress then
+    screen.refresh()
+  elseif norns then
+    screen.update()
+  end
   screen_dirty = false
 end
