@@ -150,6 +150,10 @@ local clock_redraw
 function init()
   -- screen.set_size(512, 128)
 
+  if norns then
+    screen.aa(1)
+  end
+
   bleached.init(bleached_cc_cb)
 
   local pct_control_off = controlspec.new(0, 1, "lin", 0, 0.0, "")
@@ -297,6 +301,12 @@ function draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_
       screen.color(table.unpack(c))
     elseif norns then
       local l = util.linexp(1, nb_waves, 10, 1, i)
+      -- NB: when level is 1, aa print crappy dotted lines
+      if l < 2 then
+        screen.aa(0)
+      else
+        screen.aa(1)
+      end
       screen.level(util.round(l))
     end
 
