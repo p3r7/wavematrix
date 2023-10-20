@@ -5,6 +5,12 @@ local bleached = {}
 
 
 -- ------------------------------------------------------------------------
+-- deps
+
+-- local inspect = include("lib/inspect")
+
+
+-- ------------------------------------------------------------------------
 -- consts
 
 bleached.M_CC   = 0
@@ -80,24 +86,13 @@ end
 -- sysex - m0dE
 
 -- 0x0E - "m0dE"
-bleached.switch_cc_mode = function(pot, mode)
+bleached.switch_cc_mode = function(mode)
   if dev_bleached == nil then return end
-  print("sending")
-
-  if pot ~= 0x7f then
-    pot = pot - 1
-  end
-
   midi.send(dev_bleached, {0xf0,
                            0x7d, 0x00, 0x00,
                            0x0e,
-                           pot, mode,
+                           mode,
                            0xf7})
-end
-
-bleached.switch_cc_mode_all = function(mode)
-  local all = 0x7f
-  bleached.switch_cc_mode(all, mode)
 end
 
 
@@ -139,13 +134,15 @@ end
 bleached.parse_sysex_config_dump_v210 = function(sysex_payload)
   local pinout_list = {}
   local ch_list = {}
-  local cc_mode_list = {}
   local cc_list = {}
   local cc14_list = {}
   local nrpn_list = {}
 
-  local nb_sensors = sysex_payload[10]
-  local offset = 11
+  local nb_sensors = sysex_payload[12]
+
+  local cc_mode = sysex_payload[13]
+
+  local offset = 14
 
   -- pinout
   for i=0,nb_sensors-1 do
@@ -155,11 +152,6 @@ bleached.parse_sysex_config_dump_v210 = function(sysex_payload)
   -- ch
   for i=0,nb_sensors-1 do
     table.insert(ch_list, sysex_payload[offset])
-    offset = offset+1
-  end
-  -- mode
-  for i=0,nb_sensors-1 do
-    table.insert(cc_mode_list, sysex_payload[offset])
     offset = offset+1
   end
   -- cc
@@ -184,7 +176,7 @@ bleached.parse_sysex_config_dump_v210 = function(sysex_payload)
     version = version,
     pinout = pinout_list,
     ch = ch_list,
-    cc_mode = cc_mode_list,
+    cc_mode = cc_mode,
     cc = cc_list,
     cc14 = cc14_list,
     nrpn = nrpn_list,
@@ -201,9 +193,7 @@ bleached.parse_sysex_config_dump = function(sysex_payload)
   end
   print("Bleached version: " .. version_string(version))
 
-  if is_equal_version(version, {2, 0, 0}) then
-    return bleached.parse_sysex_config_dump_v200(sysex_payload)
-  else
+  if is_equal_version(version, {2, 1, 0}) then
     return bleached.parse_sysex_config_dump_v210(sysex_payload)
   end
 end
@@ -212,10 +202,23 @@ end
 -- ------------------------------------------------------------------------
 -- init
 
+local function process_incoming_sysex(sysex_payload)
+  print("got sysex from bleached")
+  if bleached.is_sysex_config_dump(sysex_payload) then
+    print("is c0nFig")
+    conf_bleached = bleached.parse_sysex_config_dump(sysex_payload)
+    print("done retrieving bleached config")
+    -- print(inspect(conf_bleached))
+  else
+    print("unknown sysex, payload:")
+    tab.print(sysex_payload)
+  end
+end
+
 function bleached.init(cc_cb_fn)
   for _,dev in pairs(midi.devices) do
-    if dev.name~=nil and dev.name == "bleached" then
-      print("detected bleached midi dev")
+    if dev.name~=nil and dev.name == "h2o2d" then
+      print("detected h2o2d (bleached) midi dev")
       dev_bleached = dev
       midi_bleached = midi.connect(dev.port)
     end
@@ -239,15 +242,7 @@ function bleached.init(cc_cb_fn)
         table.insert(sysex_payload, b)
         if b == 0xf7 then
           is_sysex_dump_on = false
-          print("got sysex from bleached")
-          if bleached.is_sysex_config_dump(sysex_payload) then
-            print("is c0nFig")
-            conf_bleached = bleached.parse_sysex_config_dump(sysex_payload)
-            print("done retrieving bleached config")
-          else
-            print("unknown sysex, payload:")
-            tab.print(sysex_payload)
-          end
+          process_incoming_sysex(sysex_payload)
         end
       end
     elseif d.type == 'sysex' then
@@ -257,15 +252,7 @@ function bleached.init(cc_cb_fn)
         table.insert(sysex_payload, b)
         if b == 0xf7 then
           is_sysex_dump_on = false
-          print("got sysex from bleached")
-          if bleached.is_sysex_config_dump(sysex_payload) then
-            print("is c0nFig")
-            conf_bleached = bleached.parse_sysex_config_dump(sysex_payload)
-            print("done retrieving bleached config")
-          else
-            print("unknown sysex, payload:")
-            tab.print(sysex_payload)
-          end
+          process_incoming_sysex(sysex_payload)
         end
       end
     elseif d.type == 'cc' and conf_bleached ~= nil then
@@ -290,15 +277,15 @@ local function mustHaveConf()
   end
 end
 
-bleached.conf = function()
+function bleached.conf()
   return conf_bleached
 end
 
-bleached.nb_pots = function()
+function bleached.nb_pots()
   return #conf_bleached.cc
 end
 
-bleached.cc_to_row = function(cc)
+function bleached.cc_to_row(cc)
   local pot = bleached.cc_to_pot(cc)
 
   if pot > 4 then
@@ -307,7 +294,7 @@ bleached.cc_to_row = function(cc)
   return 2
 end
 
-bleached.cc_to_row_pot = function(cc)
+function bleached.cc_to_row_pot(cc)
   local pot = bleached.cc_to_pot(cc)
 
   if pot > 4 then
@@ -316,10 +303,10 @@ bleached.cc_to_row_pot = function(cc)
   return pot
 end
 
-bleached.cc_to_pot = function(cc)
+function bleached.cc_to_pot(cc)
   mustHaveConf()
 
-  local cc_mode = conf_bleached.cc_mode[1]
+  local cc_mode = conf_bleached.cc_mode
 
   if cc_mode == bleached.M_CC then
     local t = tab.invert(conf_bleached.cc)
@@ -334,10 +321,10 @@ bleached.cc_to_pot = function(cc)
 
 end
 
-bleached.register_val = function(cc, val)
+function bleached.register_val(cc, val)
   mustHaveConf()
 
-  local cc_mode = conf_bleached.cc_mode[1]
+  local cc_mode = conf_bleached.cc_mode
 
   if cc_mode == bleached.M_CC then
     local pot = bleached.cc_to_pot(cc)
@@ -365,8 +352,8 @@ bleached.register_val = function(cc, val)
 
 end
 
-bleached.is_final_val_update = function(cc)
-  local cc_mode = conf_bleached.cc_mode[1]
+function bleached.is_final_val_update(cc)
+  local cc_mode = conf_bleached.cc_mode
 
   if cc_mode == bleached.M_CC then
     return true
@@ -383,8 +370,8 @@ bleached.is_final_val_update = function(cc)
   return false
 end
 
-bleached.is_14_bits = function()
-  local cc_mode = conf_bleached.cc_mode[1]
+function bleached.is_14_bits()
+  local cc_mode = conf_bleached.cc_mode
 
   if cc_mode == bleached.M_CC then
     return false
