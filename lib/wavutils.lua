@@ -74,7 +74,7 @@ end
 -- -------------------------------------------------------------------------
 -- wav - file
 
-function  wavutils.parse_wav(filepath)
+function wavutils.parse_wav(filepath)
   local w = Wav:from_file(filepath)
 
   -- is chunk #1 metadata
