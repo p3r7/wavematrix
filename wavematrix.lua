@@ -144,11 +144,35 @@ local function get_wave_index()
 
   local x = params:get("wavetable_cursor_x") * (nb_waves_per_row - 1) + 1
   local y = params:get("wavetable_cursor_y") * (nb_rows - 1) + 1
-  local i = coords_to_index(x, y, nb_rows)
+  local i = coords_to_index(x, y, nb_rows) --  NB: unused
 
-  return i + pos_shift
+  local prev_i_bottom = prev_wave_bottom(x, y, nb_rows)
+  local next_i_bottom = next_wave_top(x, y, nb_rows)
+  local prev_i_top = prev_wave_top(x, y, nb_rows)
+  local next_i_top = next_wave_bottom(x, y, nb_rows)
+  local prev_wi_bottom = mod1(prev_i_bottom + pos_shift, #wavetable)
+  local next_wi_bottom = mod1(next_i_bottom + pos_shift, #wavetable)
+  local prev_wi_top = mod1(prev_i_top + pos_shift, #wavetable)
+  local next_wi_top = mod1(next_i_top + pos_shift, #wavetable)
+
+  local x_mix = util.linlin(math.floor(x), math.ceil(x), 0, 1, x)
+  local y_mix = util.linlin(math.floor(y), math.min(math.ceil(y), nb_rows), 0, 1, x)
+
+  return prev_wi_bottom, next_wi_bottom,
+    prev_wi_top, next_wi_top,
+    x_mix, y_mix
 end
 
+local function engine_refresh_wave()
+  local prev_wi_bottom, next_wi_bottom, prev_wi_top, next_wi_top, x_mix, y_mix = get_wave_index()
+
+  engine.prev_bottom_i(prev_wi_bottom-1)
+  engine.next_bottom_i(next_wi_bottom-1)
+  engine.prev_top_i(prev_wi_top-1)
+  engine.next_top_i(next_wi_top-1)
+  engine.mix_x(x_mix)
+  engine.mix_y(y_mix)
+end
 
 -- -------------------------------------------------------------------------
 -- norns enc
@@ -162,7 +186,7 @@ function enc(n, d)
       v = 1 + v
     end
     params:set("wavetable_pos_shift", v)
-    engine.index(get_wave_index() - 1)
+    engine_refresh_wave()
   elseif n == 2 then
     params:set("freq", params:get("freq") + d)
   elseif n == 3 then
@@ -195,8 +219,7 @@ local function bleached_cc_cb(midi_msg)
     params:set("wave_phase_shift_amount", util.linlin(0, 127, 0, 1, v))
   end
 
-  engine.index(get_wave_index() - 1)
-
+  engine_refresh_wave()
 end
 
 
