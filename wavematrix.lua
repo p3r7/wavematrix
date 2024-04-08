@@ -12,12 +12,35 @@ elseif seamstress then
   script_dir = seamstress.state.path .. "/"
 end
 
+local ControlSpec = require "controlspec"
+local Formatters = require "formatters"
+
 local wavutils = include("lib/wavutils")
 local colorutil = include("lib/colorutil")
 
 local bleached = include("lib/bleached")
 
 include("lib/core")
+
+engine.name = "WaveMatrix"
+
+-- -------------------------------------------------------------------------
+
+if seamstress then
+  --- scan directory, return file list.
+  -- @tparam string directory path to directory
+  -- @treturn table
+  util.scandir = function(directory)
+    local i, t, popen = 0, {}, io.popen
+    local pfile = popen('ls -pL "' .. directory .. '"')
+    for filename in pfile:lines() do
+      i = i + 1
+      t[i] = filename
+    end
+    pfile:close()
+    return t
+  end
+end
 
 
 -- -------------------------------------------------------------------------
@@ -32,6 +55,9 @@ if seamstress then
   MAX_FOLDING_ROWS = 6
 elseif norns then
   FPS = 15
+  if norns.version == "update	231108" then
+    FPS = 60
+  end
   WAVE_H = 20
   MAX_WAVES_DISPLAYED = 30
   MAX_FOLDING_ROWS = 4
@@ -40,6 +66,14 @@ end
 WAVE_PADDING_X = 2
 
 SHIFT_FACTOR = 5
+
+function screen_size()
+  if seamstress then
+    return screen.get_size()
+  elseif norns then
+    return 128, 64
+  end
+end
 
 
 -- -------------------------------------------------------------------------
@@ -53,13 +87,6 @@ COL_WAVE_BG = {244, 108, 108}
 COL_WAVE_SELECTED = {50, 205, 50}
 COL_WAVE_SELECTED_OFF = {255, 0, 0}
 
-function screen_size()
-  if seamstress then
-    return screen.get_size()
-  elseif norns then
-    return 128, 64
-  end
-end
 
 -- -------------------------------------------------------------------------
 -- state
@@ -93,6 +120,37 @@ end
 
 
 -- -------------------------------------------------------------------------
+-- wave index lookup
+
+local function get_wave_index()
+  local _, screen_h = screen_size()
+
+  local nb_waves = math.max(util.round(params:get("wavetable_length") * math.min(#wavetable, MAX_WAVES_DISPLAYED)), 2)
+  local nb_rows = math.min(params:get("wavetable_fold") * (MAX_FOLDING_ROWS-1) + 1, util.round(nb_waves/2))
+  local nb_waves_per_row = nb_waves/nb_rows
+  local pos_shift = util.round(params:get("wavetable_pos_shift") * (#wavetable-1))
+
+  local wavetable_w = screen_h * 3/4
+
+  -- spacing between waves
+  -- local wave_padding_x = math.min(screen_w/(nb_waves/math.min(nb_rows, MAX_FOLDING_ROWS*2/3)), WAVE_PADDING_X)
+  local wave_padding_x = WAVE_PADDING_X
+  local wave_padding_y = (wavetable_w - WAVE_H) / (nb_waves-1)
+  local row_padding_y = (wavetable_w - WAVE_H) / nb_rows
+  -- spacing between wavetable & top/bottom
+  local wave_margin_y = (screen_h - wavetable_w)/2 + (WAVE_H/2)
+
+  local nb_waves_per_row = nb_waves/nb_rows
+
+  local x = params:get("wavetable_cursor_x") * (nb_waves_per_row - 1) + 1
+  local y = params:get("wavetable_cursor_y") * (nb_rows - 1) + 1
+  local i = coords_to_index(x, y, nb_rows)
+
+  return i + pos_shift
+end
+
+
+-- -------------------------------------------------------------------------
 -- norns enc
 
 function enc(n, d)
@@ -104,8 +162,14 @@ function enc(n, d)
       v = 1 + v
     end
     params:set("wavetable_pos_shift", v)
+    engine.index(get_wave_index() - 1)
+  elseif n == 2 then
+    params:set("freq", params:get("freq") + d)
+  elseif n == 3 then
+    params:set("cutoff", params:get("cutoff") + d)
   end
 end
+
 
 -- -------------------------------------------------------------------------
 -- bleached
@@ -130,6 +194,9 @@ local function bleached_cc_cb(midi_msg)
   elseif row == 2 and pot == 4 then
     params:set("wave_phase_shift_amount", util.linlin(0, 127, 0, 1, v))
   end
+
+  engine.index(get_wave_index() - 1)
+
 end
 
 
@@ -187,6 +254,25 @@ function init()
                       screen_wavetable_dirty = true
                       screen_dirty = true
   end)
+
+  params:add{type = "control", id = "freq", name = "freq", controlspec = ControlSpec.FREQ, formatter = Formatters.format_freq}
+  params:set_action("freq", function (v)
+                      engine.freq(v)
+  end)
+
+  params:add{type = "control", id = "cutoff", name = "cutoff", controlspec = ControlSpec.FREQ, formatter = Formatters.format_freq}
+  params:set_action("cutoff", function (v)
+                      engine.cutoff(v)
+  end)
+
+  local moog_res = controlspec.new(0, 4, "lin", 0, 0.0, "")
+  params:add{type = "control", id = "res", name = "res", controlspec = moog_res}
+  params:set_action("res", function (v)
+                      engine.resonance(v)
+  end)
+
+  params:set("freq", 57)
+  params:set("cutoff", 770)
 
   parse_wav_dir(script_dir.."/waveforms/")
 
@@ -458,10 +544,6 @@ function redraw()
   --   draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y)
   -- end
 
-  if seamstress then
-    screen.refresh()
-  elseif norns then
-    screen.update()
-  end
+  screen.update()
   screen_dirty = false
 end
