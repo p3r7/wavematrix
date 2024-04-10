@@ -164,7 +164,7 @@ local function get_wave_index()
   local next_wi_top = mod1(next_i_top + pos_shift, #wavetable)
 
   local x_mix = util.linlin(math.floor(x), math.ceil(x), 0, 1, x)
-  local y_mix = util.linlin(math.floor(y), math.min(math.ceil(y), nb_rows), 0, 1, x)
+  local y_mix = util.linlin(math.floor(y), math.min(math.ceil(y), nb_rows), 0, 1, y)
 
   -- phase
   local prev_bottom_p = params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (prev_i_bottom/nb_waves)
