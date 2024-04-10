@@ -421,7 +421,9 @@ function init()
       end
   end)
 
-  parse_wav_dir(script_dir.."/waveforms/")
+  clock.run(function()
+      parse_wav_dir(script_dir.."/waveforms/")
+  end)
 end
 
 
