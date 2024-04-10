@@ -1,30 +1,41 @@
 Engine_WaveMatrix : CroneEngine {
 	var <synth;
 	var params;
+	var wavetable;
 
 	alloc {
 
 		var server = Crone.server;
+		var def;
 
 		var path = PathName("/home/we/dust/code/wavematrix/waveforms/");
-		var wavetable = path.entries.collect { |entry|
+
+		wavetable = path.entries.collect { |entry|
 			Buffer.read(server, path.fullPath +/+ entry.fileName);
 		};
 
-		var def = SynthDef(\WaveMatrix, { |out = 0, freq = 440, amp = 0.5,
+		def = SynthDef(\WaveMatrix, {
+			arg out = 0,
+			freq = 440, amp = 0.5,
+			// index
 			prev_bottom_i = 0.0, next_bottom_i = 0.0,
 			prev_top_i = 0.0, next_top_i = 0.0,
+			// phase
+			prev_bottom_p = 0.0, next_bottom_p = 0.0,
+			prev_top_p = 0.0, next_top_p = 0.0,
+			// x-fade
 			mix_x = 0.0, mix_y = 0.0,
-			phase = 0.0, cutoff = 1200, resonance = 0|
+			// filter
+			cutoff = 1200, resonance = 0;
 
 			// TODO: was at doing XFade2 of 4 wavetables
 			var prev_bottom, next_bottom, prev_top, next_top, raw_top, raw_bottom, raw, filtered;
 			var bufNums = wavetable.collect { |wf| wf.bufnum };
 
-			prev_bottom = VOsc.ar(prev_bottom_i.clip2(wavetable.size - 2), freq, phase) * amp;
-			next_bottom = VOsc.ar(next_bottom_i.clip2(wavetable.size - 2), freq, phase) * amp;
-			prev_top = VOsc.ar(prev_top_i.clip2(wavetable.size - 2), freq, phase) * amp;
-			next_top = VOsc.ar(next_top_i.clip2(wavetable.size - 2), freq, phase) * amp;
+			prev_bottom = VOsc.ar(prev_bottom_i.clip2(wavetable.size - 2), freq, prev_bottom_p) * amp;
+			next_bottom = VOsc.ar(next_bottom_i.clip2(wavetable.size - 2), freq, next_bottom_p) * amp;
+			prev_top = VOsc.ar(prev_top_i.clip2(wavetable.size - 2), freq, prev_top_p) * amp;
+			next_top = VOsc.ar(next_top_i.clip2(wavetable.size - 2), freq, next_top_p) * amp;
 
 			// NB: mix_* converted for XFade2 range (-1 to 1)
 			raw_bottom = XFade2.ar(prev_bottom, next_bottom, mix_x * 2 - 1) * amp;
@@ -50,15 +61,23 @@ Engine_WaveMatrix : CroneEngine {
 
 		params = Dictionary.newFrom([
 			\freq, 80,
+			\amp, 0.1,
+			// index
 			\prev_bottom_i, 0.0,
 			\next_bottom_i, 0.0,
 			\prev_top_i, 0.0,
 			\next_top_i, 0.0,
+			// phase
+			\prev_bottom_p, 0.0,
+			\next_bottom_p, 0.0,
+			\prev_top_p, 0.0,
+			\next_top_p, 0.0,
+			// xfade
 			\mix_x, 0.0,
 			\mix_y, 0.0,
+			// filter
 			\cutoff, 8000,
 			\resonance, 0.0,
-			\amp, 0.1;
 		]);
 
 		params.keysDo({ arg key;
@@ -72,5 +91,6 @@ Engine_WaveMatrix : CroneEngine {
 
 	free {
 		synth.free;
+		wavetable.free;
 	}
 }
