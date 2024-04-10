@@ -56,7 +56,7 @@ if seamstress then
 elseif norns then
   FPS = 15
   if norns.version == "update	231108" then
-    FPS = 60
+    FPS = 30
   end
   WAVE_H = 20
   MAX_WAVES_DISPLAYED = 30
@@ -146,10 +146,13 @@ local function get_wave_index()
   local y = params:get("wavetable_cursor_y") * (nb_rows - 1) + 1
   local i = coords_to_index(x, y, nb_rows) --  NB: unused
 
+  -- without position shift
   local prev_i_bottom = prev_wave_bottom(x, y, nb_rows)
   local next_i_bottom = next_wave_top(x, y, nb_rows)
   local prev_i_top = prev_wave_top(x, y, nb_rows)
   local next_i_top = next_wave_bottom(x, y, nb_rows)
+
+  -- with position shift
   local prev_wi_bottom = mod1(prev_i_bottom + pos_shift, #wavetable)
   local next_wi_bottom = mod1(next_i_bottom + pos_shift, #wavetable)
   local prev_wi_top = mod1(prev_i_top + pos_shift, #wavetable)
@@ -161,6 +164,22 @@ local function get_wave_index()
   return prev_wi_bottom, next_wi_bottom,
     prev_wi_top, next_wi_top,
     x_mix, y_mix
+end
+
+function prev_wave_bottom(x, y, nb_rows)
+  return util.round(coords_to_index(math.floor(x), math.floor(y), nb_rows))
+end
+
+function next_wave_bottom(x, y, nb_rows)
+  return util.round(coords_to_index(math.ceil(x), math.floor(y), nb_rows))
+end
+
+function prev_wave_top(x, y, nb_rows)
+  return util.round(coords_to_index(math.floor(x), math.min(math.ceil(y), nb_rows), nb_rows))
+end
+
+function next_wave_top(x, y, nb_rows)
+  return util.round(coords_to_index(math.ceil(x), math.min(math.ceil(y), nb_rows), nb_rows))
 end
 
 local function engine_refresh_wave()
@@ -425,39 +444,24 @@ function draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_
   end
 end
 
-function prev_wave_bottom(x, y, nb_rows)
-  return util.round(coords_to_index(math.floor(x), math.floor(y), nb_rows))
-end
-
-function next_wave_bottom(x, y, nb_rows)
-  return util.round(coords_to_index(math.ceil(x), math.floor(y), nb_rows))
-end
-
-function prev_wave_top(x, y, nb_rows)
-  return util.round(coords_to_index(math.floor(x), math.min(math.ceil(y), nb_rows), nb_rows))
-end
-
-function next_wave_top(x, y, nb_rows)
-  return util.round(coords_to_index(math.ceil(x), math.min(math.ceil(y), nb_rows), nb_rows))
-end
 
 function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y, row_padding_y)
-  local screen_w, screen_h = screen_size()
+  local _, screen_h = screen_size()
 
+  local prev_wi_bottom, next_wi_bottom, prev_wi_top, next_wi_top, x_mix, y_mix = get_wave_index()
+
+  local nb_waves = math.max(util.round(params:get("wavetable_length") * math.min(#wavetable, MAX_WAVES_DISPLAYED)), 2)
+  local nb_rows = math.min(params:get("wavetable_fold") * (MAX_FOLDING_ROWS-1) + 1, util.round(nb_waves/2))
   local nb_waves_per_row = nb_waves/nb_rows
 
   local x = params:get("wavetable_cursor_x") * (nb_waves_per_row - 1) + 1
   local y = params:get("wavetable_cursor_y") * (nb_rows - 1) + 1
-  local i = coords_to_index(x, y, nb_rows)
 
+  -- without position shift
   local prev_i_bottom = prev_wave_bottom(x, y, nb_rows)
   local next_i_bottom = next_wave_top(x, y, nb_rows)
   local prev_i_top = prev_wave_top(x, y, nb_rows)
   local next_i_top = next_wave_bottom(x, y, nb_rows)
-  local prev_wi_bottom = mod1(prev_i_bottom + pos_shift, #wavetable)
-  local next_wi_bottom = mod1(next_i_bottom + pos_shift, #wavetable)
-  local prev_wi_top = mod1(prev_i_top + pos_shift, #wavetable)
-  local next_wi_top = mod1(next_i_top + pos_shift, #wavetable)
 
   local off_x = offness(x, math.floor(x), math.ceil(x))
   local off_y = offness(y, math.floor(y), math.min(math.ceil(y), nb_rows))
@@ -476,6 +480,7 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
     screen.level(15)
   end
 
+  -- wave amplitude
   -- local a = WAVE_H/nb_rows
   local a = util.linlin(1, MAX_FOLDING_ROWS, WAVE_H, WAVE_H/(MAX_FOLDING_ROWS/2), nb_rows)
 
@@ -487,13 +492,16 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
 
     local wt_prev_bottom = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (prev_i_top/nb_waves) * nb_samples), nb_samples)
     local wt_next_bottom = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (next_i_top/nb_waves) * nb_samples), nb_samples)
-    local v_bottom = util.linlin(math.floor(x), math.ceil(x), wavetable[prev_wi_bottom][wt_prev_bottom], wavetable[next_wi_bottom][wt_next_bottom], x)
+    -- local v_bottom = util.linlin(math.floor(x), math.ceil(x), wavetable[prev_wi_bottom][wt_prev_bottom], wavetable[next_wi_bottom][wt_next_bottom], x)
+    local v_bottom = util.linlin(0, 1, wavetable[prev_wi_bottom][wt_prev_bottom], wavetable[next_wi_bottom][wt_next_bottom], x_mix)
 
     local wt_prev_top = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (prev_i_top/nb_waves) * nb_samples), nb_samples)
     local wt_next_top = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (next_i_top/nb_waves) * nb_samples), nb_samples)
-    local v_top = util.linlin(math.floor(x), math.ceil(x), wavetable[prev_wi_top][wt_prev_top], wavetable[next_wi_top][wt_next_top], x)
+    -- local v_top = util.linlin(math.floor(x), math.ceil(x), wavetable[prev_wi_top][wt_prev_top], wavetable[next_wi_top][wt_next_top], x)
+    local v_top = util.linlin(0, 1, wavetable[prev_wi_top][wt_prev_top], wavetable[next_wi_top][wt_next_top], x_mix)
 
-    local v = util.linlin(math.floor(y), math.min(math.ceil(y), nb_rows), v_bottom, v_top, y)
+    -- local v = util.linlin(math.floor(y), math.min(math.ceil(y), nb_rows), v_bottom, v_top, y)
+    local v = util.linlin(0, 1, v_bottom, v_top, y_mix)
 
     -- local wt_prev = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (prev_i/nb_waves) * nb_samples), nb_samples)
     -- local wt_next = mod1(wt + util.round(params:get("wave_phase_shift_amount") * SHIFT_FACTOR * (next_i/nb_waves) * nb_samples), nb_samples)
