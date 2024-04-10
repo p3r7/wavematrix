@@ -102,7 +102,9 @@ mouse_y = 0
 has_bleached = false
 
 wavetable = {}
+wavetable_map = {}
 wavetable_initiated = false
+wavetable_shuffled = false
 
 
 -- -------------------------------------------------------------------------
@@ -156,6 +158,13 @@ local function get_wave_index()
   local next_i_bottom = next_wave_top(x, y, nb_rows)
   local prev_i_top = prev_wave_top(x, y, nb_rows)
   local next_i_top = next_wave_bottom(x, y, nb_rows)
+
+  if wavetable_shuffled then
+    prev_i_bottom = wavetable_map[prev_i_bottom]
+    next_i_bottom = wavetable_map[next_i_bottom]
+    prev_i_top = wavetable_map[prev_i_top]
+    next_i_top = wavetable_map[prev_i_top]
+  end
 
   -- absolute index (with position shift)
   local prev_wi_bottom = mod1(prev_i_bottom + pos_shift, #wavetable)
@@ -217,7 +226,30 @@ local function engine_refresh_wave()
 end
 
 -- -------------------------------------------------------------------------
--- norns enc
+-- norns on-board controls
+
+local k1 = false
+local k2 = false
+local k3 = false
+
+function key(n, v)
+  if n == 1 then
+    k1 = (v == 1)
+  end
+  if n == 2 then
+    k2 = (v == 1)
+  end
+  if n == 3 then
+    k3 = (v == 1)
+  end
+
+  if k1 and k2 then
+    params:set("sort", 1)
+  end
+  if k1 and k3 then
+    params:set("shuffle", 1)
+  end
+end
 
 function enc(n, d)
   if n == 1 then
@@ -290,6 +322,47 @@ function init()
 
   local pct_control_off = controlspec.new(0, 1, "lin", 0, 0.0, "")
   local pct_control_on = controlspec.new(0, 1, "lin", 0, 1.0, "")
+
+  params:add_trigger("shuffle", "shuffle")
+  params:set_action("shuffle",
+                    function(v)
+                      if not wavetable_initiated then
+                        return
+                      end
+
+                      print("shuffling wavetable")
+
+                      tempty(wavetable_map)
+                      math.randomseed(math.random(1000))
+                      for i=1,#wavetable do
+                        print(i.."/"..#wavetable)
+                        local i2 = math.random(#wavetable)
+                        while tab.contains(wavetable_map, i2) do
+                          i2 = math.random(#wavetable)
+                        end
+                        wavetable_map[i] = i2
+                      end
+
+                      print("done shuffling")
+                      wavetable_shuffled = true
+                      screen_wavetable_dirty = true
+                      screen_dirty = true
+                      engine_refresh_wave()
+  end)
+
+  params:add_trigger("sort", "sort")
+  params:set_action("sort",
+                    function(v)
+                      if not wavetable_initiated then
+                        return
+                      end
+                      tempty(wavetable_map)
+                      wavetable_shuffled = false
+                      screen_wavetable_dirty = true
+                      screen_dirty = true
+                      engine_refresh_wave()
+  end)
+
 
   params:add{type = "control", id = "wavetable_length", name = "wavetable length", controlspec = pct_control_on, formatter = format_percent}
   params:set_action("wavetable_length", function (_v)
@@ -389,6 +462,10 @@ end
 local wavetable_texture = nil
 
 function draw_wave_from_table(wi, x, y, w, a, phase_shift)
+  if wavetable_shuffled then
+    wi = wavetable_map[wi]
+  end
+
   for t=1,w do
     local wt = util.round(util.linlin(1, w, 1, #wavetable[wi], t))
     wt = mod1(wt + util.round(phase_shift), #wavetable[wi])
@@ -488,6 +565,14 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
   local next_i_bottom = next_wave_top(x, y, nb_rows)
   local prev_i_top = prev_wave_top(x, y, nb_rows)
   local next_i_top = next_wave_bottom(x, y, nb_rows)
+
+  if wavetable_shuffled then
+    prev_i_bottom = wavetable_map[prev_i_bottom]
+    next_i_bottom = wavetable_map[next_i_bottom]
+    prev_i_top = wavetable_map[prev_i_top]
+    next_i_top = wavetable_map[prev_i_top]
+  end
+
 
   local off_x = offness(x, math.floor(x), math.ceil(x))
   local off_y = offness(y, math.floor(y), math.min(math.ceil(y), nb_rows))
