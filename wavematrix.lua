@@ -24,6 +24,7 @@ include("lib/core")
 
 engine.name = "WaveMatrix"
 
+
 -- -------------------------------------------------------------------------
 
 if seamstress then
@@ -159,18 +160,18 @@ local function get_wave_index()
   local prev_i_top = prev_wave_top(x, y, nb_rows)
   local next_i_top = next_wave_bottom(x, y, nb_rows)
 
-  if wavetable_shuffled then
-    prev_i_bottom = wavetable_map[prev_i_bottom]
-    next_i_bottom = wavetable_map[next_i_bottom]
-    prev_i_top = wavetable_map[prev_i_top]
-    next_i_top = wavetable_map[prev_i_top]
-  end
-
   -- absolute index (with position shift)
   local prev_wi_bottom = mod1(prev_i_bottom + pos_shift, #wavetable)
   local next_wi_bottom = mod1(next_i_bottom + pos_shift, #wavetable)
   local prev_wi_top = mod1(prev_i_top + pos_shift, #wavetable)
   local next_wi_top = mod1(next_i_top + pos_shift, #wavetable)
+
+  if wavetable_shuffled then
+    prev_wi_bottom = wavetable_map[prev_wi_bottom]
+    next_wi_bottom = wavetable_map[next_wi_bottom]
+    prev_wi_top = wavetable_map[prev_wi_top]
+    next_wi_top = wavetable_map[next_wi_top]
+  end
 
   local x_mix = util.linlin(math.floor(x), math.ceil(x), 0, 1, x)
   local y_mix = util.linlin(math.floor(y), math.min(math.ceil(y), nb_rows), 0, 1, y)
@@ -335,7 +336,6 @@ function init()
                       tempty(wavetable_map)
                       math.randomseed(math.random(1000))
                       for i=1,#wavetable do
-                        print(i.."/"..#wavetable)
                         local i2 = math.random(#wavetable)
                         while tab.contains(wavetable_map, i2) do
                           i2 = math.random(#wavetable)
@@ -410,9 +410,7 @@ function init()
   end)
 
   params:set("freq", 57)
-  params:set("cutoff", 770)
-
-  parse_wav_dir(script_dir.."/waveforms/")
+  params:set("cutoff", 1100)
 
   clock_redraw = clock.run(function()
       while true do
@@ -422,6 +420,8 @@ function init()
         end
       end
   end)
+
+  parse_wav_dir(script_dir.."/waveforms/")
 end
 
 
@@ -560,20 +560,6 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
   local x = params:get("wavetable_cursor_x") * (nb_waves_per_row - 1) + 1
   local y = params:get("wavetable_cursor_y") * (nb_rows - 1) + 1
 
-  -- without position shift
-  local prev_i_bottom = prev_wave_bottom(x, y, nb_rows)
-  local next_i_bottom = next_wave_top(x, y, nb_rows)
-  local prev_i_top = prev_wave_top(x, y, nb_rows)
-  local next_i_top = next_wave_bottom(x, y, nb_rows)
-
-  if wavetable_shuffled then
-    prev_i_bottom = wavetable_map[prev_i_bottom]
-    next_i_bottom = wavetable_map[next_i_bottom]
-    prev_i_top = wavetable_map[prev_i_top]
-    next_i_top = wavetable_map[prev_i_top]
-  end
-
-
   local off_x = offness(x, math.floor(x), math.ceil(x))
   local off_y = offness(y, math.floor(y), math.min(math.ceil(y), nb_rows))
 
@@ -636,17 +622,8 @@ function draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wa
 
 end
 
-function redraw()
+function redraw_wavetable()
   local screen_w, screen_h = screen_size()
-
-  screen.clear()
-
-  screen.move(1, 1)
-
-  if seamstress then
-    screen.color(table.unpack(COL_BG))
-    screen.rect_fill(screen_w, screen_h)
-  end
 
   local wavetable_w = screen_h * 3/4
 
@@ -683,6 +660,23 @@ function redraw()
   --   wavetable_texture:render(1, 1)
   --   draw_interpolating_cursor(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y)
   -- end
+end
+
+function redraw()
+  local screen_w, screen_h = screen_size()
+
+  screen.clear()
+
+  screen.move(1, 1)
+
+  if seamstress then
+    screen.color(table.unpack(COL_BG))
+    screen.rect_fill(screen_w, screen_h)
+  end
+
+  if wavetable_initiated then
+    redraw_wavetable()
+  end
 
   screen.update()
   screen_dirty = false
