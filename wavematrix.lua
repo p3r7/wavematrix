@@ -1,6 +1,27 @@
--- wavematrix
--- @eigen.
-
+-- wavematrix.
+-- @eigen  __/\      _
+--       _/      \__/  \
+--     /   _/\            \_.
+--    '/\/     \    /\       \
+--   /           \/    \__.
+--  '                         \
+--    ▼ instructions below ▼
+--
+-- norns:
+-- - E1: scroll
+-- - E2: pitch
+-- - E3: filter
+-- - K1 + K3: shuffle
+-- - K1 + K2: sort
+--
+-- bleached (h202d):
+-- - E1: scan X
+-- - E2: scan Y (when folded)
+-- - E3: *RFU*
+-- - E4: scroll
+-- - E5: unroll
+-- - E6: fold
+-- - E7: phase
 
 -- -------------------------------------------------------------------------
 -- deps
