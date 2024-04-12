@@ -10,14 +10,14 @@
 -- norns:
 -- - E1: scroll
 -- - E2: pitch
--- - E3: filter
+-- - E3: amp offset
 -- - K1 + K3: shuffle
 -- - K1 + K2: sort
 --
 -- bleached (h202d):
 -- - E1: scan X
 -- - E2: scan Y (when folded)
--- - E3: *RFU*
+-- - E3: filter cutoff
 -- - E4: scroll
 -- - E5: unroll
 -- - E6: fold
@@ -286,9 +286,8 @@ function enc(n, d)
       v = 1 + v
     end
     params:set("wavetable_pos_shift", v)
-    engine_refresh_wave()
   elseif n == 2 then
-    params:set("freq", params:get("freq") + d)
+    params:set("amp_offset", params:get("amp_offset") + d/5)
   elseif n == 3 then
     params:set("cutoff", params:get("cutoff") + d)
   end
@@ -316,6 +315,8 @@ local function bleached_cc_cb(midi_msg)
       params:set("wavetable_cursor_x", util.linlin(0, precision, 0, 1, v))
     elseif row == 1 and pot == 2 then
       params:set("wavetable_cursor_y", util.linlin(0, precision, 0, 1, v))
+    elseif row == 1 and pot == 3 then
+      params:set("cutoff", util.linexp(0, precision, ControlSpec.FREQ.minval, ControlSpec.FREQ.maxval, v))
     elseif row == 2 and pot == 1 then
       params:set("wavetable_pos_shift", util.linlin(0, precision, 0, 1, v))
     elseif row == 2 and pot == 2 then
@@ -325,8 +326,6 @@ local function bleached_cc_cb(midi_msg)
     elseif row == 2 and pot == 4 then
       params:set("wave_phase_shift_amount", util.linlin(0, precision, 0, 1, v))
     end
-
-    engine_refresh_wave()
   end
 end
 
@@ -426,24 +425,29 @@ function init()
   end)
   params:add{type = "control", id = "wavetable_pos_shift", name = "wavetable shift", controlspec = pct_control_off, formatter = format_percent}
   params:set_action("wavetable_pos_shift", function (_v)
+                      engine_refresh_wave()
                       screen_wavetable_dirty = true
                       screen_dirty = true
   end)
   params:add{type = "control", id = "wavetable_cursor_x", name = "wavetable cursor x", controlspec = pct_control_off, formatter = format_percent}
   params:set_action("wavetable_cursor_x", function (_v)
+                      engine_refresh_wave()
                       screen_dirty = true
   end)
   params:add{type = "control", id = "wavetable_cursor_y", name = "wavetable cursor y", controlspec = pct_control_off, formatter = format_percent}
   params:set_action("wavetable_cursor_y", function (_v)
+                      engine_refresh_wave()
                       screen_dirty = true
   end)
   params:add{type = "control", id = "wavetable_fold", name = "wavetable folding", controlspec = pct_control_off, formatter = format_percent}
   params:set_action("wavetable_fold", function (_v)
+                      engine_refresh_wave()
                       screen_wavetable_dirty = true
                       screen_dirty = true
   end)
   params:add{type = "control", id = "wave_phase_shift_amount", name = "wave phase shift", controlspec = pct_control_off, formatter = format_percent}
   params:set_action("wave_phase_shift_amount", function (_v)
+                      engine_refresh_wave()
                       screen_wavetable_dirty = true
                       screen_dirty = true
   end)
