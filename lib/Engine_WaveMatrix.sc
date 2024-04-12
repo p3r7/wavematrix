@@ -16,6 +16,7 @@ Engine_WaveMatrix : CroneEngine {
 
 		def = SynthDef(\WaveMatrix, {
 			arg out = 0,
+			gate = 0, vel = 0.5,
 			freq = 440, amp = 0.5,
 			// index
 			prev_bottom_i = 0.0, next_bottom_i = 0.0,
@@ -25,6 +26,9 @@ Engine_WaveMatrix : CroneEngine {
 			prev_top_p = 0.0, next_top_p = 0.0,
 			// x-fade
 			mix_x = 0.0, mix_y = 0.0,
+			// amp env
+			amp_offset = 0.0,
+			attack = 0.1, decay = 0.1, sustain = 0.7, release = 0.5,
 			// filter
 			cutoff = 1200, resonance = 0;
 
@@ -32,11 +36,14 @@ Engine_WaveMatrix : CroneEngine {
 			var prev_bottom, next_bottom, prev_top, next_top, raw_top, raw_bottom, raw, filtered;
 			var bufNums = wavetable.collect { |wf| wf.bufnum };
 			var indexLag = 0.1;
+			var env, scaledEnv;
 
 			prev_bottom_i = Lag.kr(prev_bottom_i, indexLag);
 			next_bottom_i = Lag.kr(next_bottom_i, indexLag);
 			prev_top_i = Lag.kr(prev_top_i, indexLag);
 			next_top_i = Lag.kr(next_top_i, indexLag);
+
+			mix_x = Lag.kr(mix_x, indexLag);
 
 			prev_bottom = VOsc.ar(prev_bottom_i.clip2(wavetable.size - 2), freq, prev_bottom_p) * amp;
 			next_bottom = VOsc.ar(next_bottom_i.clip2(wavetable.size - 2), freq, next_bottom_p) * amp;
@@ -49,7 +56,12 @@ Engine_WaveMatrix : CroneEngine {
 
 			raw = XFade2.ar(raw_bottom, raw_top, mix_y * 2 - 1) * amp;
 
-			filtered = MoogFF.ar(in: raw, freq: cutoff, gain: resonance);
+			//raw = LeakDC.ar(raw, 0.995);
+
+			env = EnvGen.kr(Env.adsr(attack, decay, sustain, release), gate, doneAction: 0);
+			scaledEnv = (1 - amp_offset) * env + amp_offset;
+
+			filtered = MoogFF.ar(in: raw, freq: cutoff, gain: resonance) * scaledEnv * vel;
 
 			// Output the signal in stereo
 			Out.ar(0, filtered ! 2);
@@ -67,7 +79,7 @@ Engine_WaveMatrix : CroneEngine {
 
 		params = Dictionary.newFrom([
 			\freq, 80,
-			\amp, 0.1,
+			\amp, 0.1, // REVIEW: remove?
 			// index
 			\prev_bottom_i, 0.0,
 			\next_bottom_i, 0.0,
@@ -81,6 +93,12 @@ Engine_WaveMatrix : CroneEngine {
 			// xfade
 			\mix_x, 0.0,
 			\mix_y, 0.0,
+			// amp env
+			\amp_offset, 0.0,
+			\attack, 0.1,
+			\decay, 0.1,
+			\sustain, 0.7,
+			\release, 0.5,
 			// filter
 			\cutoff, 8000,
 			\resonance, 0.0,
@@ -91,6 +109,15 @@ Engine_WaveMatrix : CroneEngine {
 				params[key] = msg[1];
 				synth.set(key, msg[1]);
 			});
+		});
+
+		this.addCommand("noteOn", "if", { arg msg;
+			var freq = msg[1];
+			var vel = msg[2];
+			synth.set(\freq, freq, \vel, vel, \gate, 1);
+		});
+		this.addCommand("noteOff", "", { arg msg;
+			synth.set(\gate, 0);
 		});
 
 	}

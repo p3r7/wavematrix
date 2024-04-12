@@ -23,6 +23,7 @@
 -- - E6: fold
 -- - E7: phase
 
+
 -- -------------------------------------------------------------------------
 -- deps
 
@@ -35,6 +36,7 @@ end
 
 local ControlSpec = require "controlspec"
 local Formatters = require "formatters"
+local MusicUtil = require "musicutil"
 
 local wavutils = include("lib/wavutils")
 local colorutil = include("lib/colorutil")
@@ -122,6 +124,8 @@ mouse_x = 0
 mouse_y = 0
 
 has_bleached = false
+
+m = nil
 
 wavetable = {}
 wavetable_map = {}
@@ -326,6 +330,27 @@ local function bleached_cc_cb(midi_msg)
   end
 end
 
+-- -------------------------------------------------------------------------
+--
+-- notes
+
+function note_on(note_num, vel)
+  engine.noteOn(MusicUtil.note_num_to_freq(note_num), vel)
+end
+
+function note_off()
+  engine.noteOff()
+end
+
+function midi_event(data)
+  local msg = midi.to_msg(data)
+
+  if msg.type == "note_off" then
+    note_off(msg.note)
+  elseif msg.type == "note_on" then
+    note_on(msg.note, msg.vel / 127)
+  end
+end
 
 -- -------------------------------------------------------------------------
 -- params
@@ -423,6 +448,29 @@ function init()
                       screen_dirty = true
   end)
 
+  -- midi dev
+
+  params:add{type = "number", id = "midi_device", name = "MIDI Device", min = 1, max = 4, default = 1, action = function(v)
+               if m ~= nil then
+                 m.event = nil
+               end
+               m = midi.connect(v)
+               m.event = midi_event
+  end}
+
+  -- amp env
+
+  local ENV_ATTACK = ControlSpec.new(0.002, 5, "lin", 0, 0.55, "s")
+  local ENV_DECAY = ControlSpec.new(0.002, 10, "lin", 0, 0.3, "s")
+  local ENV_SUSTAIN = ControlSpec.new(0, 1, "lin", 0, 0.5, "")
+  local ENV_RELEASE = ControlSpec.new(0.002, 10, "lin", 0, 2, "s")
+  params:add{type = "control", id = "amp_offset", name = "Amp Offset", controlspec = pct_control_off, formatter = format_percent, action = engine.amp_offset}
+  params:add{type = "control", id = "amp_attack", name = "Amp Attack", controlspec = ENV_ATTACK, formatter = Formatters.format_secs, action = engine.attack}
+  params:add{type = "control", id = "amp_decay", name = "Amp Decay", controlspec = ENV_DECAY, formatter = Formatters.format_secs, action = engine.decay}
+  params:add{type = "control", id = "amp_sustain", name = "Amp Sustain", controlspec = ENV_SUSTAIN, action = engine.sustain}
+  params:add{type = "control", id = "amp_release", name = "Amp Release", controlspec = ENV_RELEASE, formatter = Formatters.format_secs, action = engine.release}
+
+  -- filter
   params:add{type = "control", id = "freq", name = "freq", controlspec = ControlSpec.FREQ, formatter = Formatters.format_freq}
   params:set_action("freq", function (v)
                       engine.freq(v)
