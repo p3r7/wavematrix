@@ -14,7 +14,7 @@
 -- - K1 + K3: shuffle
 -- - K1 + K2: sort
 --
--- bleached (h202d):
+-- bleached (h202d) / 8mu:
 -- - E1: scan X
 -- - E2: scan Y (when folded)
 -- - E3: filter cutoff
@@ -22,15 +22,6 @@
 -- - E5: unroll
 -- - E6: fold
 -- - E7: phase
---
--- 8mu:
--- - S1: scan X
--- - S2: scan Y (when folded)
--- - S3: filter cutoff
--- - S4: scroll
--- - S5: unroll
--- - S6: fold
--- - S7: phase
 
 
 -- -------------------------------------------------------------------------
@@ -311,6 +302,10 @@ end
 local function _8mu_cc_cb(midi_msg)
   has_8mu = true
 
+  if params:string("auto_bind_controller") == "no" then
+    return
+  end
+
   --  print(midi_msg.cc, midi_msg.val)
 
   local slider = _8mu.cc_2_slider_id(midi_msg.cc)
@@ -337,6 +332,10 @@ end
 
 local function bleached_cc_cb(midi_msg)
   has_bleached = true
+
+  if params:string("auto_bind_controller") == "no" then
+    return
+  end
 
   bleached.register_val(midi_msg.cc, midi_msg.val)
   if bleached.is_final_val_update(midi_msg.cc) then
@@ -425,11 +424,6 @@ function init()
     screen.aa(1)
   end
 
-  bleached.init(bleached_cc_cb)
-  bleached.switch_cc_mode(bleached.M_CC14)
-
-  _8mu.init(_8mu_cc_cb)
-
   local pct_control_off = controlspec.new(0, 1, "lin", 0, 0.0, "")
   local pct_control_on = controlspec.new(0, 1, "lin", 0, 1.0, "")
 
@@ -509,6 +503,8 @@ function init()
 
   -- midi dev
 
+  params:add{type = "option", id = "auto_bind_controller", name = "auto bind bleached/8mu", options = {"yes", "no"}, default = 1}
+
   params:add{type = "number", id = "midi_device", name = "MIDI Device", min = 1, max = 4, default = 1, action = function(v)
                if m ~= nil then
                  m.event = nil
@@ -552,6 +548,21 @@ function init()
 
   params:set("freq", 57)
   params:set("cutoff", 1100)
+
+
+  -- --------------------------------
+  -- controllers
+
+  bleached.init(bleached_cc_cb)
+  if params:string("auto_bind_controller") == "yes" then
+    bleached.switch_cc_mode(bleached.M_CC14)
+  end
+
+  _8mu.init(_8mu_cc_cb)
+
+
+  -- --------------------------------
+  -- clocks
 
   clock_redraw = clock.run(function()
       while true do
