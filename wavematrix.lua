@@ -22,6 +22,15 @@
 -- - E5: unroll
 -- - E6: fold
 -- - E7: phase
+--
+-- 8mu:
+-- - S1: scan X
+-- - S2: scan Y (when folded)
+-- - S3: filter cutoff
+-- - S4: scroll
+-- - S5: unroll
+-- - S6: fold
+-- - S7: phase
 
 
 -- -------------------------------------------------------------------------
@@ -42,6 +51,7 @@ local wavutils = include("lib/wavutils")
 local colorutil = include("lib/colorutil")
 
 local bleached = include("lib/bleached")
+local _8mu = include("lib/8mu")
 
 include("lib/core")
 
@@ -124,6 +134,7 @@ mouse_x = 0
 mouse_y = 0
 
 has_bleached = false
+has_8mu = false
 
 m = nil
 
@@ -295,7 +306,34 @@ end
 
 
 -- -------------------------------------------------------------------------
--- bleached
+-- controllers
+
+local function _8mu_cc_cb(midi_msg)
+  has_8mu = true
+
+  --  print(midi_msg.cc, midi_msg.val)
+
+  local slider = _8mu.cc_2_slider_id(midi_msg.cc)
+  local v = midi_msg.val
+
+  local precision = 127
+
+  if slider == 1 then
+    params:set("wavetable_cursor_x", util.linlin(0, precision, 0, 1, v))
+  elseif slider == 2 then
+    params:set("wavetable_cursor_y", util.linlin(0, precision, 0, 1, v))
+  elseif slider == 3 then
+    params:set("cutoff", util.linexp(0, precision, ControlSpec.FREQ.minval, ControlSpec.FREQ.maxval, v))
+  elseif slider == 4 then
+    params:set("wavetable_pos_shift", util.linlin(0, precision, 0, 1, v))
+  elseif slider == 5 then
+    params:set("wavetable_length", util.linlin(0, precision, 0, 1, v))
+  elseif slider == 6 then
+    params:set("wavetable_fold", util.linlin(0, precision, 0, 1, v))
+  elseif slider == 7 then
+    params:set("wave_phase_shift_amount", util.linlin(0, precision, 0, 1, v))
+  end
+end
 
 local function bleached_cc_cb(midi_msg)
   has_bleached = true
@@ -389,6 +427,8 @@ function init()
 
   bleached.init(bleached_cc_cb)
   bleached.switch_cc_mode(bleached.M_CC14)
+
+  _8mu.init(_8mu_cc_cb)
 
   local pct_control_off = controlspec.new(0, 1, "lin", 0, 0.0, "")
   local pct_control_on = controlspec.new(0, 1, "lin", 0, 1.0, "")
