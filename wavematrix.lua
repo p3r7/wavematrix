@@ -344,6 +344,21 @@ end
 function midi_event(data)
   local msg = midi.to_msg(data)
 
+  local channel_param = params:get("midi_channel")
+
+  if channel_param == 18 then
+    channel_param = 1
+    mpe_mode = true
+  end
+
+  if not msg.ch then
+    return
+  end
+
+  if params:string("midi_channel") ~= "All" or msg.ch ~= (params:get("midi_channel") - 1) then
+    return
+  end
+
   if msg.type == "note_off" then
     note_off(msg.note)
   elseif msg.type == "note_on" then
@@ -461,6 +476,10 @@ function init()
                m = midi.connect(v)
                m.event = midi_event
   end}
+
+  local MIDI_CHANNELS = {"All"}
+  for i = 1, 16 do table.insert(MIDI_CHANNELS, i) end
+  params:add{type = "option", id = "midi_channel", name = "MIDI Channel", options = MIDI_CHANNELS}
 
   -- amp env
 
