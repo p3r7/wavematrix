@@ -385,7 +385,7 @@ function midi_event(data)
     return
   end
 
-  if params:string("midi_channel") ~= "All" or msg.ch ~= (params:get("midi_channel") - 1) then
+  if params:string("midi_channel") ~= "All" and msg.ch ~= (params:get("midi_channel") - 1) then
     return
   end
 
