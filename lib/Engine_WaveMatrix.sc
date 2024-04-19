@@ -34,7 +34,6 @@ Engine_WaveMatrix : CroneEngine {
 
 			// TODO: was at doing XFade2 of 4 wavetables
 			var prev_bottom, next_bottom, prev_top, next_top, raw_top, raw_bottom, raw, filtered;
-			var bufNums = wavetable.collect { |wf| wf.bufnum };
 			var indexLag = 0.1;
 			var env, scaledEnv;
 
