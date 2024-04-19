@@ -139,6 +139,7 @@ wavetable_shuffled = false
 -- wav parsing
 
 function parse_wav_dir(dirpath)
+  wavetable_initiated = false
   tempty(wavetable)
   local filenames = util.scandir(dirpath)
   for _, filename in pairs(filenames) do
@@ -149,6 +150,7 @@ function parse_wav_dir(dirpath)
     end
   end
   wavetable_initiated = true
+  screen_dirty = true
 end
 
 
@@ -234,7 +236,7 @@ function next_wave_top(x, y, nb_rows)
 end
 
 local function engine_refresh_wave()
-  if not wavetable_initiated then
+  if not wavetable_initiated or #wavetable == 0 then
     return
   end
 
@@ -576,7 +578,6 @@ function init()
   -- --------------------------------
   -- clocks
 
-
   clock_redraw = clock.run(function()
       while true do
         clock.sleep(1/FPS)
@@ -586,12 +587,7 @@ function init()
       end
   end)
 
-  -- REVIEW: not working...
-  -- params:set("wavetable_path", script_dir.."wavetables/big/")
-  -- so doing this instead...
-  clock.run(function()
-      parse_wav_dir(script_dir.."/waveforms/")
-  end)
+  params:set("wavetable_path", script_dir.."wavetables/big/")
 end
 
 function cleanup()
@@ -658,6 +654,7 @@ end
 
 function draw_wavetable(nb_waves, nb_rows, pos_shift, wavetable_w, wave_padding_x, wave_padding_y, wave_margin_y, row_padding_y)
   local screen_w, screen_h = screen_size()
+
   local nb_waves_per_row = math.floor(nb_waves/nb_rows)
 
   -- NB: we draw from front to back
@@ -847,7 +844,7 @@ function redraw()
     screen.rect_fill(screen_w, screen_h)
   end
 
-  if wavetable_initiated then
+  if wavetable_initiated and #wavetable > 0 then
     redraw_wavetable()
   end
 
