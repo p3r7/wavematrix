@@ -32,9 +32,16 @@ end
 
 
 -- -------------------------------------------------------------------------
+-- string
+
+function string_ends(s, ending)
+  return s:sub(-#ending) == ending
+end
+
+-- -------------------------------------------------------------------------
 -- 2d folding
 
-function index_to_coords(i, nb_rows)
+  function index_to_coords(i, nb_rows)
   local y = mod1_smooth(i, nb_rows)
   local x = (i - y) / nb_rows + 1
   return x, y
@@ -45,4 +52,14 @@ function coords_to_index(x, y, nb_rows)
         return x
     end
     return (x - 1) * nb_rows + y
+end
+
+-- -------------------------------------------------------------------------
+-- tables
+
+-- remove all element of table without changing its memory pointer
+function tempty(t)
+  for k, v in pairs(t) do
+    t[k] = nil
+  end
 end

@@ -139,6 +139,7 @@ wavetable_shuffled = false
 -- wav parsing
 
 function parse_wav_dir(dirpath)
+  tempty(wavetable)
   local filenames = util.scandir(dirpath)
   for _, filename in pairs(filenames) do
     if filename:sub(-#'.wav') == '.wav' then
@@ -410,6 +411,16 @@ end
 
 local clock_redraw
 
+function load_wavetable(path)
+  local wavetable_path = path
+  if string_ends(path, ".wav") then
+    wavetable_path = wavetable_path:match("(.*/)")
+  end
+  print("Loading wavetable at: "..wavetable_path)
+  engine.loadWavetable(wavetable_path)
+  parse_wav_dir(wavetable_path)
+end
+
 function init()
   -- screen.set_size(512, 128)
 
@@ -419,6 +430,14 @@ function init()
 
   local pct_control_off = controlspec.new(0, 1, "lin", 0, 0.0, "")
   local pct_control_on = controlspec.new(0, 1, "lin", 0, 1.0, "")
+
+  params:add_file("wavetable_path", "Wavetable", script_dir.."wavetables/")
+  params:set_action("wavetable_path",
+                    function(v)
+                      clock.run(function()
+                          load_wavetable(v)
+                      end)
+  end)
 
   params:add_trigger("shuffle", "shuffle")
   params:set_action("shuffle",
@@ -557,6 +576,7 @@ function init()
   -- --------------------------------
   -- clocks
 
+
   clock_redraw = clock.run(function()
       while true do
         clock.sleep(1/FPS)
@@ -566,6 +586,9 @@ function init()
       end
   end)
 
+  -- REVIEW: not working...
+  -- params:set("wavetable_path", script_dir.."wavetables/big/")
+  -- so doing this instead...
   clock.run(function()
       parse_wav_dir(script_dir.."/waveforms/")
   end)
